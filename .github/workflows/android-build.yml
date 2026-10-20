@@ -1,31 +1,6 @@
 # Android Debug Build Workflow
-# This workflow builds a debug APK of CallVault on every push to the build-debug branch
-# and on manual dispatch. It is intentionally simpler than build-app.yml and does not
-# handle releases, signing, or release artifacts.
-#
-# Triggers:
-#   - Push to the 'build-debug' branch
-#   - Manual dispatch (workflow_dispatch)
-#
-# Jobs:
-#   1. build: Compiles the debug APK and uploads it as an artifact
-#
-# Requirements (from BUILDING.md and app/build.gradle.kts):
-#   - JDK 17
-#   - Android SDK: platforms;android-36, build-tools;36.0.0
-#   - Android NDK: 27.2.12479018
-#   - CMake: 3.22.1
-#   - Git submodules: third_party/whisper.cpp, third_party/llama.cpp (recursive)
-#
-# The native build (externalNativeBuild) compiles:
-#   - libaudiohandoff.so (audio-capture handoff for resilient recording)
-#   - whisper.cpp (on-device transcription)
-#   - llama.cpp (on-device summarisation with Gemma)
-# All native libraries target arm64-v8a only (abiFilters in defaultConfig).
-#
-# Artifacts:
-#   - app/build/outputs/apk/debug/app-debug.apk uploaded as 'app-debug-apk'
-#   - Retained for 30 days
+# Builds a debug APK on pushes to build-debug and on manual dispatch.
+# Uses GitHub-hosted runners; no Android build tools are required on the developer's PC.
 
 name: Android Debug Build
 
@@ -35,7 +10,6 @@ on:
     branches:
       - build-debug
 
-# Ensure only one workflow runs at a time for the same ref
 concurrency:
   group: android-debug-build-${{ github.ref }}
   cancel-in-progress: true
@@ -45,65 +19,45 @@ jobs:
     name: Build Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
-    # Minimal permissions - only needs to read code and upload artifacts
     permissions:
       contents: read
-      actions: read  # For upload-artifact
 
     steps:
-      # whisper.cpp and llama.cpp are submodules and the native CMake build reads them
-      # directly, so a checkout without them cannot build the app at all.
       - name: Checkout Repository with Submodules
         uses: actions/checkout@v6
         with:
           submodules: recursive
-          fetch-depth: 0  # Needed for gradle version resolution if any
+          fetch-depth: 0
 
-      # Set up Java 17 (required for Android Gradle Plugin 8.x and this project)
       - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
-      # Set up Android SDK with required packages using android-actions/setup-android@v3
-      # The project needs (installed via sdkmanager package IDs):
-      #   - platforms;android-36 (compileSdk = 36)
-      #   - build-tools;36.0.0
-      #   - ndk;27.2.12479018 (ndkVersion in app/build.gradle.kts)
-      #   - cmake;3.22.1 (externalNativeBuild.cmake.version)
-      # Licenses are accepted automatically via the action's 'licenses' input.
+      # Only install the SDK packages required by app/build.gradle.kts.
+      # Use supported setup-android inputs; do not pass "tools" as a package.
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: '12266719'
+          accept-android-sdk-licenses: true
           packages: |
+            platform-tools
             platforms;android-36
             build-tools;36.0.0
             ndk;27.2.12479018
             cmake;3.22.1
-          licenses: 'android-sdk-license-.+|intel-android-sysimage-license-.+'
-          cache: gradle
 
-      # Set up Gradle with caching for faster builds
-      # validate-wrappers: true prevents supply chain attacks on the Gradle wrapper
-      # basic cache provider uses the MIT-licensed legacy caching (no proprietary terms)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
           validate-wrappers: true
           cache-provider: basic
-          # For PRs from forks, cache is read-only to prevent cache poisoning
-          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 
-      # Build the debug APK
-      # Uses the project's Gradle wrapper and the :app:assembleDebug task
-      # Version properties use CI defaults (see app/build.gradle.kts ciVersionCode/ciVersionName)
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
-      # Upload the debug APK as a build artifact
-      # Path matches the project's output location: app/build/outputs/apk/debug/app-debug.apk
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v6
         with:
@@ -112,7 +66,6 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      # Optional: Print APK info for verification
       - name: Print APK Info
         if: always()
         run: |
