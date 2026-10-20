@@ -36,19 +36,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Only install the SDK packages required by app/build.gradle.kts.
-      # Use supported setup-android inputs; do not pass "tools" as a package.
+      # Install command-line tools and accept licenses, then install each SDK
+      # package as a separate sdkmanager argument (not one multiline package).
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: '12266719'
           accept-android-sdk-licenses: true
-          packages: |
-            platform-tools
-            platforms;android-36
-            build-tools;36.0.0
-            ndk;27.2.12479018
-            cmake;3.22.1
+
+      - name: Install Android SDK Packages
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.2.12479018" \
+            "cmake;3.22.1"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
