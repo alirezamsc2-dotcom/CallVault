@@ -67,19 +67,23 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # Set up Android SDK with required packages
-      # The project needs:
-      #   - platform 36 (compileSdk = 36)
-      #   - build-tools 36.0.0
-      #   - ndk 27.2.12479018 (ndkVersion in app/build.gradle.kts)
-      #   - cmake 3.22.1 (externalNativeBuild.cmake.version)
+      # Set up Android SDK with required packages using android-actions/setup-android@v3
+      # The project needs (installed via sdkmanager package IDs):
+      #   - platforms;android-36 (compileSdk = 36)
+      #   - build-tools;36.0.0
+      #   - ndk;27.2.12479018 (ndkVersion in app/build.gradle.kts)
+      #   - cmake;3.22.1 (externalNativeBuild.cmake.version)
+      # Licenses are accepted automatically via the action's 'licenses' input.
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 36
-          ndk-version: 27.2.12479018
-          cmake-version: 3.22.1
-          build-tools-version: 36.0.0
+          packages: |
+            platforms;android-36
+            build-tools;36.0.0
+            ndk;27.2.12479018
+            cmake;3.22.1
+          licenses: 'android-sdk-license-.+|intel-android-sysimage-license-.+'
+          cache: gradle
 
       # Set up Gradle with caching for faster builds
       # validate-wrappers: true prevents supply chain attacks on the Gradle wrapper
