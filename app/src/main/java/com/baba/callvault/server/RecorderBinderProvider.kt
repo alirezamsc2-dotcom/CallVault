@@ -101,6 +101,19 @@ class RecorderBinderProvider : ContentProvider() {
 
     /** Mirrors `ShizukuProvider.handleSendBinder`: read the container, store + link-to-death the binder. */
     private fun handleSendBinder(extras: Bundle) {
+        // This provider must be exported so the shell-UID recorder daemon can deliver its binder,
+        // but exporting it also makes the entry point reachable by other apps. Accept the binder
+        // only from the shell daemon, Android system, or this app; reject all other callers before
+        // unparcelling caller-controlled extras.
+        val callingUid = Binder.getCallingUid()
+        if (callingUid != Process.SHELL_UID &&
+            callingUid != Process.SYSTEM_UID &&
+            callingUid != Process.myUid()
+        ) {
+            AppLogger.w(TAG, "sendBinder rejected: untrusted caller uid=$callingUid")
+            return
+        }
+
         // CRITICAL (Shizuku gotcha): set the classloader so BinderContainer deserialises to OUR class.
         extras.classLoader = BinderContainer::class.java.classLoader
 
